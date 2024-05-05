@@ -51,104 +51,101 @@ architecture space_arch of SpaceShooter is
 	
 begin
 
-   logic : process(clk_slow, clk_fast, move_left, move_right, shoot, control)
-		
+   	logic : process(clk_slow, clk_fast, move_left, move_right, shoot, control)
 		variable obstacle_counter : integer range 0 to 20; -- Gérer la vitesse des obstacles 
 		variable bullet_counter : integer range 0 to 5; -- Gérer la vitesse des tirs
 		
-   begin
-      if rising_edge(clk_slow) then
+   	begin
+      	if rising_edge(clk_slow) then
             if(control = '1') then
                 play <= true;
-					 menu <= false;
+				menu <= false;
             elsif (play) then
-					if(move_right = '0' and move_left = '0' and shoot = '0') then
-						action <= true;
-					elsif(action) then
-					  action <= false;
-					  if move_left = '1' then
-							-- Déplacer la LED vers la gauche
-							if player_col > 1 then
-								 player_col <= player_col - 1;
-							end if;
-					  elsif move_right = '1' then
-							-- Déplacer la LED vers la droite
-							if player_col < 5 then
-								 player_col <= player_col + 1;
-							end if;
-						elsif shoot = '1' then
-							-- Le joueur a tiré
-							bullet <= true;
-					  end if;
-					end if;
-					
-					touched <= (bullet_row = obstacle_row and player_col = obstacle_col) and bullet; -- Si le tir a touché un obstacle, il vaut true. False sinon
-					
-					-- Si le tir a touché un obstacle ou est arrivé jusque la première ligne, on réinitialise le tir
-					if touched or (bullet_row < 1) then
-						bullet_row <= 7;
-						bullet <= false;
-					end if;
-					
-					bullet_counter := bullet_counter + 1; -- Utilisé pour diminuer la vitesse du tir
-					if(bullet) then
-						if bullet_counter = 2 then -- Après 2 rising edge de la clock, on peut déplacer la balle
-							bullet_counter := 0;
-							bullet_row <= bullet_row - 1;
+				if(move_right = '0' and move_left = '0' and shoot = '0') then
+					action <= true;
+				elsif(action) then
+					action <= false;
+					if move_left = '1' then
+						-- Déplacer la LED vers la gauche
+						if player_col > 1 then
+								player_col <= player_col - 1;
 						end if;
-						
-					end if;
-					
-					if touched then
-						delete_obstacle <= true; -- On supprime l'obstacle s'il a été touché par un tir
-						obstacle_row <= 1; -- On place l'obstacle à la premiere ligne (à corriger)
-						obstacle_col <= rand_col; -- On place l'obstacle dans une colonne random
-						touched <= false; -- Le nouvel obstacle n'a pas encore été touché
-						
-						-- On incrémente le score manuellement pour économiser les logic gates (optimisation)
-						if(score_dizaine <= 9 and score_unite < 9) then
-							if score_unite = 9 then
-								score_dizaine <= score_dizaine + 1;
-								score_unite <= 0;
-							else
-								score_unite <= score_unite + 1;
-							end if;
+					elsif move_right = '1' then
+						-- Déplacer la LED vers la droite
+						if player_col < 5 then
+								player_col <= player_col + 1;
 						end if;
-						
-					end if;
-					
-					-- Si l'obstacle courant n'a pas été touché, on peut l'envoyer dans la direction du joueur
-					if(not delete_obstacle) then
-						obstacle_counter := obstacle_counter + 1;
-						
-						-- Facteur de ralentissement pour l'obstacle
-						if obstacle_counter = 10 then
-							obstacle_counter := 0;
-							obstacle_row <= obstacle_row + obstacle_speed;
-							
-							-- Si l'obstacle n'a pas touché le joueur, on réinitialise sa position
-							if obstacle_row > 7 then
-								obstacle_row <= 1;
-								obstacle_col <= rand_col;
-							end if;
-							
-						end if;
-					else
-						delete_obstacle <= false; -- A corriger
+					elsif shoot = '1' then
+						-- Le joueur a tiré
+						bullet <= true;
 					end if;
 				end if;
+				
+				touched <= (bullet_row = obstacle_row and player_col = obstacle_col) and bullet; -- Si le tir a touché un obstacle, il vaut true. False sinon
+				
+				-- Si le tir a touché un obstacle ou est arrivé jusque la première ligne, on réinitialise le tir
+				if touched or (bullet_row < 1) then
+					bullet_row <= 7;
+					bullet <= false;
+				end if;
+				
+				bullet_counter := bullet_counter + 1; -- Utilisé pour diminuer la vitesse du tir
+				if(bullet) then
+					if bullet_counter = 2 then -- Après 2 rising edge de la clock, on peut déplacer la balle
+						bullet_counter := 0;
+						bullet_row <= bullet_row - 1;
+					end if;
+				end if;
+				
+				if touched then
+					delete_obstacle <= true; -- On supprime l'obstacle s'il a été touché par un tir
+					obstacle_row <= 1; -- On place l'obstacle à la premiere ligne (à corriger)
+					obstacle_col <= rand_col; -- On place l'obstacle dans une colonne random
+					touched <= false; -- Le nouvel obstacle n'a pas encore été touché
+					
+					-- On incrémente le score manuellement pour économiser les logic gates (optimisation)
+					if(score_dizaine <= 9 and score_unite < 9) then
+						if score_unite = 9 then
+							score_dizaine <= score_dizaine + 1;
+							score_unite <= 0;
+						else
+							score_unite <= score_unite + 1;
+						end if;
+					end if;
+				end if;
+				
+				-- Si l'obstacle courant n'a pas été touché, on peut l'envoyer dans la direction du joueur
+				if(not delete_obstacle) then
+					obstacle_counter := obstacle_counter + 1;
+					
+					-- Facteur de ralentissement pour l'obstacle
+					if obstacle_counter = 10 then
+						obstacle_counter := 0;
+						obstacle_row <= obstacle_row + obstacle_speed;
+						
+						-- Si l'obstacle n'a pas touché le joueur, on réinitialise sa position
+						if obstacle_row > 7 then
+							obstacle_row <= 1;
+							obstacle_col <= rand_col;
+						end if;
+						
+					end if;
+				else
+					delete_obstacle <= false; -- A corriger
+				end if;
+			end if;
         end if;
-   end process logic;
+   	end process logic;
    
 	-- Random process pour la colonne des obstacles
 	random : process(clk_fast)
 	begin 
-	  if rising_edge(clk_fast) then
+	  	if rising_edge(clk_fast) then
 			if rand_col = 5 then
-				 rand_col <= 1;
-			 else
-				 rand_col <= rand_col + 1;
-			 end if;
+				rand_col <= 1;
+			else
+				rand_col <= rand_col + 1;
+			end if;
 		end if;
 	end process random;
 	 
