@@ -18,119 +18,129 @@ end SpaceShooter;
 
 architecture space_arch of SpaceShooter is
 
-	-- Positions du joueur
+   -- Positions du joueur
 	signal player_col : integer range 1 to 5 := 3;
 
-	-- Position actuelle des obstacles (modifications eventuelles)
-	signal current_row : integer range 1 to 7 := 7;
-	signal action : boolean := true;
-
 	-- Logique du jeu
-	signal play : boolean := false; -- Utilisé pour détecter si le joueur a lancé une partie ou non
-	signal game_over : boolean := false; -- Utilisé pour détecter si le joueur a perdu la partie ou non
-	signal menu : boolean := true;
+	signal play : boolean := false; -- Détecter si le joueur a lancé une partie ou non
+	signal action : boolean := true; -- Ce booléen vaut false si un bouton a été pressé (moves & shoot)
+	signal game_over : boolean := false; -- Détecter si le joueur a perdu la partie ou non
+	signal menu : boolean := true; -- Détecter si le joueur est dans le menu ou non
 	signal lives : integer range 0 to 3 := 3; -- Nombre de vies du joueur : 3 initialement
 
-	signal bullet_row : integer range 0 to 7 := 7;
-
+	-- Tirs du joueur
+	signal bullet_row : integer range 0 to 7 := 7; -- Ligne courante de la balle tirée par le joueur
+	signal bullet : boolean := false; -- Indication si notre joueur a tiré ou non
+	signal touched : boolean := false; -- Indication si un obstacle a été touché ou non
+	
+	-- Obstacles
 	signal obstacle_row : integer range 0 to 8 := 1; -- Position initiale de l'obstacle
 	signal obstacle_col : integer range 1 to 5; -- Position horizontale de l'obstacle
 	signal obstacle_speed : integer := 1; -- Vitesse de déplacement de l'obstacle
 	signal delete_obstacle : boolean := false;
-
-	signal rand_col : integer range 1 to 5 := 1; -- Utilisé pour généner une colonne aléatoire pour l'obstable
-	signal row_counter : natural range 1 to 7 := 1; -- Utilisé pour afficher l'image du menu
+	signal rand_col : integer range 1 to 5 := 1; -- Colonne aléatoire pour l'obstable
+	
+	-- Faciliter l'affichage de la matrice selon la fréquence courante
+	signal row_counter : natural range 1 to 7 := 1; -- Index de la ligne courante pour l'affichage du menu
 	signal switch : natural range 1 to 3 := 1; -- Switch pour avoir une alternance entre les obstacles et le joueur
 
-	signal bullet : boolean := false;
-	signal touched : boolean := false;
-
-	subtype digit_type is integer range 0 to 9;
-
-	signal score_dizaine : digit_type;
-	signal score_unite : digit_type;
-
+	-- 7 segments (0 to 99)
+	subtype digit_type is integer range 0 to 9; -- Type pour les 7 segments
+	signal score_dizaine : digit_type; -- Dizaine du 7 segments
+	signal score_unite : digit_type; -- Unité du 7 segments
+	
 begin
 
-	logic : process(clk_slow, clk_fast, move_left, move_right, shoot, control)
-			variable obstacle_counter : integer range 0 to 20;
-			variable bullet_counter : integer range 0 to 5;
-			
-	begin
-		if rising_edge(clk_slow) then
-			if(control = '1') then
-				play <= true;
-					menu <= false;
-			elsif (play) then
-				if(move_right = '0' and move_left = '0' and shoot = '0') then
-					action <= true;
-				elsif(action) then
-					action <= false;
-					if move_left = '1' then
-						-- Déplacer la LED vers la gauche
-						if player_col > 1 then
-								player_col <= player_col - 1;
-						end if;
-					elsif move_right = '1' then
-						-- Déplacer la LED vers la droite
-						if player_col < 5 then
-								player_col <= player_col + 1;
-						end if;
-					elsif shoot = '1' then
-						bullet <= true;
-					end if;
-				end if;
-				
-				
-				touched <= (bullet_row = obstacle_row and player_col = obstacle_col) and bullet;
-				
-				if touched or (bullet_row < 1) then
-					bullet_row <= 7;
-					bullet <= false;
-
-				end if;
-				bullet_counter := bullet_counter + 1;
-				if(bullet) then
-					if bullet_counter = 2 then
-						bullet_counter := 0;
-						bullet_row <= bullet_row - 1;
+   logic : process(clk_slow, clk_fast, move_left, move_right, shoot, control)
+		
+		variable obstacle_counter : integer range 0 to 20; -- Gérer la vitesse des obstacles 
+		variable bullet_counter : integer range 0 to 5; -- Gérer la vitesse des tirs
+		
+   begin
+      if rising_edge(clk_slow) then
+            if(control = '1') then
+                play <= true;
+					 menu <= false;
+            elsif (play) then
+					if(move_right = '0' and move_left = '0' and shoot = '0') then
+						action <= true;
+					elsif(action) then
+					  action <= false;
+					  if move_left = '1' then
+							-- Déplacer la LED vers la gauche
+							if player_col > 1 then
+								 player_col <= player_col - 1;
+							end if;
+					  elsif move_right = '1' then
+							-- Déplacer la LED vers la droite
+							if player_col < 5 then
+								 player_col <= player_col + 1;
+							end if;
+						elsif shoot = '1' then
+							-- Le joueur a tiré
+							bullet <= true;
+					  end if;
 					end if;
 					
-				end if;
-				
-				if touched then
-					delete_obstacle <= true;
-					obstacle_row <= 1;
-					obstacle_col <= rand_col;
-					touched <= false;
-					if(score_dizaine <= 9 and score_unite < 9) then
-						if score_unite = 9 then
-							score_dizaine <= score_dizaine + 1;
-							score_unite <= 0;
-						else
-							score_unite <= score_unite + 1;
-						end if;
+					touched <= (bullet_row = obstacle_row and player_col = obstacle_col) and bullet; -- Si le tir a touché un obstacle, il vaut true. False sinon
+					
+					-- Si le tir a touché un obstacle ou est arrivé jusque la première ligne, on réinitialise le tir
+					if touched or (bullet_row < 1) then
+						bullet_row <= 7;
+						bullet <= false;
 					end if;
-				end if;
-				
-				if(not delete_obstacle) then
-					obstacle_counter := obstacle_counter + 1;
-					if obstacle_counter = 10 then -- Facteur de ralentissement pour l'obstacle
-						obstacle_counter := 0;
-						obstacle_row <= obstacle_row + obstacle_speed;
+					
+					bullet_counter := bullet_counter + 1; -- Utilisé pour diminuer la vitesse du tir
+					if(bullet) then
+						if bullet_counter = 2 then -- Après 2 rising edge de la clock, on peut déplacer la balle
+							bullet_counter := 0;
+							bullet_row <= bullet_row - 1;
+						end if;
 						
-						if obstacle_row > 7 then
-							obstacle_row <= 1;
-							obstacle_col <= rand_col;
-						end if;
 					end if;
-				else
-					delete_obstacle <= false;
+					
+					if touched then
+						delete_obstacle <= true; -- On supprime l'obstacle s'il a été touché par un tir
+						obstacle_row <= 1; -- On place l'obstacle à la premiere ligne (à corriger)
+						obstacle_col <= rand_col; -- On place l'obstacle dans une colonne random
+						touched <= false; -- Le nouvel obstacle n'a pas encore été touché
+						
+						-- On incrémente le score manuellement pour économiser les logic gates (optimisation)
+						if(score_dizaine <= 9 and score_unite < 9) then
+							if score_unite = 9 then
+								score_dizaine <= score_dizaine + 1;
+								score_unite <= 0;
+							else
+								score_unite <= score_unite + 1;
+							end if;
+						end if;
+						
+					end if;
+					
+					-- Si l'obstacle courant n'a pas été touché, on peut l'envoyer dans la direction du joueur
+					if(not delete_obstacle) then
+						obstacle_counter := obstacle_counter + 1;
+						
+						-- Facteur de ralentissement pour l'obstacle
+						if obstacle_counter = 10 then
+							obstacle_counter := 0;
+							obstacle_row <= obstacle_row + obstacle_speed;
+							
+							-- Si l'obstacle n'a pas touché le joueur, on réinitialise sa position
+							if obstacle_row > 7 then
+								obstacle_row <= 1;
+								obstacle_col <= rand_col;
+							end if;
+							
+						end if;
+					else
+						delete_obstacle <= false; -- A corriger
+					end if;
 				end if;
-			end if;
-		end if;
-	end process logic;
-    
+        end if;
+   end process logic;
+   
+	-- Random process pour la colonne des obstacles
 	random : process(clk_fast)
 	begin 
 	  if rising_edge(clk_fast) then
@@ -146,15 +156,18 @@ begin
 	begin
 		if rising_edge(clk_fast) then
 			if play then
-					
+				
+				-- Si l'obstacle touche le joueur, on diminue ses vies de 1
 				if(obstacle_row = 7 and obstacle_col = player_col) then
 					lives <= lives - 1;
 				end if;
 				
+				-- La ligne continuellement allumée est celle du joueur (la dernière)
 				rows <= "0000001";
 				cols_green <= (others => '1');
 				cols_red <= (others => '1');
 				
+				-- Premier rising edge, on affiche le joeur selon son état
 				if switch = 1 then
 					cols_green <= (others => '1');
 					rows <= (others => '0');
@@ -172,7 +185,8 @@ begin
 					end case;
 					
 					rows(7) <= '1';
-
+				
+				-- Deuxième rising edge, on affiche l'obstacle
 				elsif switch = 2 then
 					if obstacle_row <= 7 then
 						if not delete_obstacle then
@@ -182,6 +196,8 @@ begin
 							cols_red(obstacle_col) <= '0';
 						end if;
 					end if;
+				
+				-- Troisième rising edge, on affiche le tir du joueur s'il a été envoyé
 				elsif switch > 2 and (touched = false or bullet_row <= 1) and bullet then
 					rows <= (others => '0');
 					cols_red <= (others => '1');
@@ -190,8 +206,9 @@ begin
 				end if;
 				
 				switch <= switch + 1;
+				
+			-- Menu principal --
 			elsif menu then
-				-- Menu principal --
 				case row_counter is 
 					when 1 => 
 						rows <= "0100010";
@@ -228,7 +245,6 @@ begin
 	
 
 end architecture space_arch;
-
 
 
 
