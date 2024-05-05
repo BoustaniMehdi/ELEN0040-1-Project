@@ -20,6 +20,7 @@ architecture space_arch of SpaceShooter is
 
    -- Positions du joueur
 	signal player_col : integer range 1 to 5 := 3;
+	constant player_row  : integer := 7;
 
 	-- Logique du jeu
 	signal play : boolean := false; -- Détecter si le joueur a lancé une partie ou non
@@ -29,7 +30,7 @@ architecture space_arch of SpaceShooter is
 	signal lives : integer range 0 to 3 := 3; -- Nombre de vies du joueur : 3 initialement
 
 	-- Tirs du joueur
-	signal bullet_row : integer range 0 to 7 := 7; -- Ligne courante de la balle tirée par le joueur
+	signal bullet_row : integer range 0 to 6 := 6; -- Ligne courante de la balle tirée par le joueur
 	signal bullet : boolean := false; -- Indication si notre joueur a tiré ou non
 	signal touched : boolean := false; -- Indication si un obstacle a été touché ou non
 	
@@ -37,7 +38,7 @@ architecture space_arch of SpaceShooter is
 	signal obstacle_row : integer range 0 to 8 := 1; -- Position initiale de l'obstacle
 	signal obstacle_col : integer range 1 to 5; -- Position horizontale de l'obstacle
 	signal obstacle_speed : integer := 1; -- Vitesse de déplacement de l'obstacle
-	signal delete_obstacle : boolean := false;
+	signal delete_obstacle : boolean := false; -- False si un obstacle a été touché. False sinon
 	signal rand_col : integer range 1 to 5 := 1; -- Colonne aléatoire pour l'obstable
 	
 	-- Faciliter l'affichage de la matrice selon la fréquence courante
@@ -53,7 +54,6 @@ begin
 
    	logic : process(clk_slow, clk_fast, move_left, move_right, shoot, control)
 		variable obstacle_counter : integer range 0 to 20; -- Gérer la vitesse des obstacles 
-		variable bullet_counter : integer range 0 to 5; -- Gérer la vitesse des tirs
 		
    	begin
       	if rising_edge(clk_slow) then
@@ -85,16 +85,12 @@ begin
 				
 				-- Si le tir a touché un obstacle ou est arrivé jusque la première ligne, on réinitialise le tir
 				if touched or (bullet_row < 1) then
-					bullet_row <= 7;
+					bullet_row <= 6;
 					bullet <= false;
 				end if;
 				
-				bullet_counter := bullet_counter + 1; -- Utilisé pour diminuer la vitesse du tir
 				if(bullet) then
-					if bullet_counter = 2 then -- Après 2 rising edge de la clock, on peut déplacer la balle
-						bullet_counter := 0;
-						bullet_row <= bullet_row - 1;
-					end if;
+					bullet_row <= bullet_row - 1;
 				end if;
 				
 				if touched then
@@ -102,9 +98,10 @@ begin
 					obstacle_row <= 1; -- On place l'obstacle à la premiere ligne (à corriger)
 					obstacle_col <= rand_col; -- On place l'obstacle dans une colonne random
 					touched <= false; -- Le nouvel obstacle n'a pas encore été touché
+					bullet_row <= 6;
 					
 					-- On incrémente le score manuellement pour économiser les logic gates (optimisation)
-					if(score_dizaine <= 9 and score_unite < 9) then
+					if(score_dizaine <= 9 and score_unite <= 9) then
 						if score_unite = 9 then
 							score_dizaine <= score_dizaine + 1;
 							score_unite <= 0;
@@ -181,7 +178,7 @@ begin
 							game_over <= true;
 					end case;
 					
-					rows(7) <= '1';
+					rows(player_row) <= '1';
 				
 				-- Deuxième rising edge, on affiche l'obstacle
 				elsif switch = 2 then
@@ -240,7 +237,6 @@ begin
 		end if;
 	end process display;
 	
-
 end architecture space_arch;
 
 
