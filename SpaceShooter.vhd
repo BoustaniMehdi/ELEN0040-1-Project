@@ -21,7 +21,6 @@ architecture space_arch of SpaceShooter is
 	constant GRID_HEIGHT : integer := 7;
 	constant OBSTACLE_SPEED_MAX : integer := 16;
 	constant LIVES_MAX : integer := 3;
-	constant MAX_DIZAINE : integer := 5;
 	
 	-- Etats du jeu
 	type GameState is (MENU, PLAY, END_GAME, PAUSE);
@@ -33,7 +32,7 @@ architecture space_arch of SpaceShooter is
 
 	-- Logique du jeu
 	signal not_action : boolean := true; -- Ce booléen vaut false si un bouton a été pressé (moves & shoot)
-	signal lives : integer range 0 to 3 := 3; -- Nombre de vies du joueur : 3 initialement
+	signal lives : integer range 0 to LIVES_MAX := LIVES_MAX; -- Nombre de vies du joueur : 3 initialement
 
 	-- Tirs du joueur
 	signal bullet_row : integer range 0 to 6 := 6; -- Ligne courante de la balle tirée par le joueur
@@ -51,7 +50,7 @@ architecture space_arch of SpaceShooter is
 	signal counter : integer range 0 to 20; -- Index de la ligne courante pour l'affichage du menu
 	signal switch : natural range 1 to 3; -- Switch pour avoir une alternance entre les obstacles et le joueur
 
-	-- 7 segments (0 to 99)
+	-- 7 segments (0 to 50)
 	signal score_dizaine : integer range 0 to 5;
 	signal score_unite : integer range 0 to 9;
 	
@@ -160,15 +159,15 @@ architecture space_arch of SpaceShooter is
 						
 						if(collision) then
 							-- On incrémente le score manuellement pour économiser les logic gates (optimisation)
-							if(score_dizaine <= 9 and score_unite <= 9) then
-								if score_unite = 9 then
-									score_dizaine <= score_dizaine + 1;
-									obstacle_speed := obstacle_speed - 2;
-									score_unite <= 0;
-								else
-									score_unite <= score_unite + 1;
-								end if;
+							
+							if score_unite = 9 then
+								score_dizaine <= score_dizaine + 1;
+								obstacle_speed := obstacle_speed - 2;
+								score_unite <= 0;
+							else
+								score_unite <= score_unite + 1;
 							end if;
+							
 							
 							obstacle_row <= 1; -- On place l'obstacle à la premiere ligne (à corriger)
 							obstacle_col <= rand_col; -- On place l'obstacle dans une colonne random
@@ -284,9 +283,18 @@ architecture space_arch of SpaceShooter is
 					
 				when END_GAME =>
 					rows <= (others => '1');
-					cols_red <= (others => '0');
-					
+					cols_red(player_col) <= '1';
+					if(win) then	
+						cols_green <= (others => '0');
+					else
+						cols_green <= (others => '1');	
+						cols_red <= (others => '0');	
+					end if;
 				when others =>
+					rows <= (others => '0');
+					cols_green <= (others => '1');
+					cols_red <= (others => '1');
+					
 			end case;
 	  end if;
 	end process display;
