@@ -330,7 +330,7 @@ architecture space_arch of SpaceShooter is
 					-- Suppress the display of the next obstacle
 					cols_red(obstacle_col) <= '1';
 					
-					-- Display the tricolor matrix in green if the user wins, red if he loses
+					-- Display the tricolor matrix in green if the user wins, red if the game is lost
 					if(win) then	
 						cols_green <= (others => '0');
 					else
