@@ -281,7 +281,8 @@ architecture space_arch of SpaceShooter is
 					 cols_green <= (others => '1');
 					 cols_red <= (others => '1');
 					 
-					 collision <= ((((bullet_row - 1 = obstacle_row) or bullet_row = obstacle_row) and player_col = obstacle_col) and bullet); -- Si le tir a touché un obstacle, il vaut true. False sinon
+					 -- If the bullet collides with an obstacle then it's true, otherwise it's false
+					 collision <= ((((bullet_row - 1 = obstacle_row) or bullet_row = obstacle_row) and player_col = obstacle_col) and bullet);
 					 
 					 case switch is
 					 
