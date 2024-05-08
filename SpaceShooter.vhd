@@ -19,16 +19,16 @@ architecture space_arch of SpaceShooter is
 	-- Constantes
 	constant GRID_WIDTH : integer := 5;
 	constant GRID_HEIGHT : integer := 7;
-	constant OBSTACLE_SPEED_MAX : integer := 18;
+	constant OBSTACLE_SPEED_MAX : integer := 16;
 	constant LIVES_MAX : integer := 3;
 	constant MAX_DIZAINE : integer := 5;
 	
 	-- Etats du jeu
-	type GameState is (MENU, PLAY, GAME_OVER, PAUSE);
+	type GameState is (MENU, PLAY, END_GAME, PAUSE);
 	signal state : GameState := MENU;
 	
    -- Positions du joueur
-	signal player_col, bullet_col : integer range 1 to GRID_WIDTH := 3;
+	signal player_col : integer range 1 to GRID_WIDTH := 3;
 	constant player_row  : integer := GRID_HEIGHT;
 
 	-- Logique du jeu
@@ -48,7 +48,7 @@ architecture space_arch of SpaceShooter is
 	signal rand_col : integer range 1 to GRID_WIDTH := 1; -- Colonne aléatoire pour l'obstable
 	
 	-- Faciliter l'affichage de la matrice selon la fréquence courante
-	signal led_counter : integer range 0 to 20; -- Index de la ligne courante pour l'affichage du menu
+	signal counter : integer range 0 to 20; -- Index de la ligne courante pour l'affichage du menu
 	signal switch : natural range 1 to 3; -- Switch pour avoir une alternance entre les obstacles et le joueur
 
 	-- 7 segments (0 to 99)
@@ -100,10 +100,10 @@ architecture space_arch of SpaceShooter is
 						case difficulty is
 							when 1 => 
 								obstacle_speed := OBSTACLE_SPEED_MAX;
-								lives <= 3;
+								lives <= LIVES_MAX;
 							when 2 =>
 								obstacle_speed := 12;
-								lives <= 3;
+								lives <= LIVES_MAX;
 							when 3 =>
 								obstacle_speed := 12;
 								lives <= 1;
@@ -115,7 +115,7 @@ architecture space_arch of SpaceShooter is
 							
 						elsif(not_action) then
 							not_action <= false;
-							if move_left = '1'  then 
+							if move_left = '1' then 
 								if player_col > 1 then
 									player_col <= player_col - 1;
 								end if;
@@ -127,7 +127,6 @@ architecture space_arch of SpaceShooter is
 							elsif shoot = '1' then
 								-- Le joueur a tiré
 								bullet <= true;
-								bullet_col <= player_col;
 							end if;
 						end if;
 						
@@ -140,8 +139,6 @@ architecture space_arch of SpaceShooter is
 							end if;
 						end if;
 						
-						collision <= ((((bullet_row - 1 = obstacle_row) or bullet_row = obstacle_row) and bullet_col = obstacle_col) and bullet); -- Si le tir a touché un obstacle, il vaut true. False sinon
-						
 							-- Si l'obstacle touche le joueur, on diminue ses vies de 1
 						if(obstacle_row = GRID_HEIGHT) then
 							lives <= lives - 1;
@@ -150,10 +147,10 @@ architecture space_arch of SpaceShooter is
 							obstacle_col <= rand_col;
 						else
 							if not collision then
-								led_counter <= led_counter + 1;
+								counter <= counter + 1;
 								-- Facteur de ralentissement pour l'obstacle
-								if led_counter = obstacle_speed then
-									led_counter <= 0;
+								if counter = obstacle_speed then
+									counter <= 0;
 									obstacle_row <= obstacle_row + 1;
 								end if;
 							end if;
@@ -177,7 +174,7 @@ architecture space_arch of SpaceShooter is
 							obstacle_col <= rand_col; -- On place l'obstacle dans une colonne random
 							bullet <= false;
 							delete_obstacle <= true;
-							collision <= false;
+							
 							bullet_row <= 6;
 						end if;
 						
@@ -187,7 +184,7 @@ architecture space_arch of SpaceShooter is
 						unite <= std_logic_vector(to_unsigned(score_unite, 4));
 						
 						if(lives = 0) then
-							state <= GAME_OVER;
+							state <= END_GAME;
 						end if;
 
 						if(control = '1') then
@@ -196,16 +193,16 @@ architecture space_arch of SpaceShooter is
 						
 						if(score_dizaine = 5) then
 							win <= true;
-							state <= GAME_OVER;
+							state <= END_GAME;
 						end if;
 						
 						
-					when GAME_OVER =>
+					when END_GAME =>
 						
-						if(win = true) then
-							led_counter <= led_counter + 1;
-							if(led_counter = 20) then
-								led_counter <= 0;
+						if(win) then
+							counter <= counter + 1;
+							if(counter = 20) then
+								counter <= 0;
 								end_led_state <= not end_led_state;
 								led_end <= end_led_state;
 							end if;
@@ -222,7 +219,6 @@ architecture space_arch of SpaceShooter is
 						if(shoot = '1') then
 							state <= PLAY;
 						end if;
-						
 				end case;
 			end if;
 		end process logic;
@@ -242,7 +238,6 @@ architecture space_arch of SpaceShooter is
 	 
 	display : process(clk_fast, control)   
 		
-
 	begin
 	  if rising_edge(clk_fast) then
 			case state is
@@ -251,13 +246,13 @@ architecture space_arch of SpaceShooter is
 					 cols_green <= (others => '1');
 					 cols_red <= (others => '1');
 					 
+					 collision <= ((((bullet_row - 1 = obstacle_row) or bullet_row = obstacle_row) and player_col = obstacle_col) and bullet); -- Si le tir a touché un obstacle, il vaut true. False sinon
 					 
-					 
+					 case switch is
 					 -- Premier rising edge, on affiche le joueur selon son état
-					 if switch = 1 then
-						  
+						when 1 =>
 						  case lives is 
-								when 3 => 
+								when LIVES_MAX => 
 									 cols_green(player_col) <= '0';
 								when 2 => 
 									 cols_green(player_col) <= '0';
@@ -269,23 +264,28 @@ architecture space_arch of SpaceShooter is
 						  
 						  rows(player_row) <= '1'; -- On allume uniquement la ligne du joueur
 					 
-					-- Deuxième rising edge, on affiche l'obstacle
-					elsif switch = 2 then
-						if collision nand delete_obstacle then
-							cols_red <= (others => '1');
-							rows <= (others => '0');
-							rows(obstacle_row) <= '1';
-							cols_red(obstacle_col) <= '0';
-						end if;
+						-- Deuxième rising edge, on affiche l'obstacle
+						when 2 =>
+							if collision nand delete_obstacle then
+								cols_red <= (others => '1');
+								rows <= (others => '0');
+								rows(obstacle_row) <= '1';
+								cols_red(obstacle_col) <= '0';
+							end if;
 				 
-					-- Troisième rising edge, on affiche le tir du joueur s'il a été envoyé
-					elsif switch > 2  and bullet then
-					  rows(bullet_row) <= '1';
-					  cols_red(player_col) <= '0';
-					end if;
-				 
+						-- Troisième rising edge, on affiche le tir du joueur s'il a été envoyé
+						when 3 =>
+							if bullet then
+								rows(bullet_row) <= '1';
+								cols_red(player_col) <= '0';
+							end if;
+					end case;
 					switch <= switch + 1;
-				
+					
+				when END_GAME =>
+					rows <= (others => '1');
+					cols_red <= (others => '0');
+					
 				when others =>
 			end case;
 	  end if;
