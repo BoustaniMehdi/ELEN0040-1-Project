@@ -19,14 +19,16 @@ architecture space_arch of SpaceShooter is
 	-- Constantes
 	constant GRID_WIDTH : integer := 5;
 	constant GRID_HEIGHT : integer := 7;
-	constant OBSTACLE_SPEED_MAX : integer := 15;
+	constant OBSTACLE_SPEED_MAX : integer := 18;
+	constant LIVES_MAX : integer := 3;
+	constant MAX_DIZAINE : integer := 5;
 	
 	-- Etats du jeu
 	type GameState is (MENU, PLAY, GAME_OVER, PAUSE);
 	signal state : GameState := MENU;
 	
    -- Positions du joueur
-	signal player_col : integer range 1 to GRID_WIDTH := 3;
+	signal player_col, bullet_col : integer range 1 to GRID_WIDTH := 3;
 	constant player_row  : integer := GRID_HEIGHT;
 
 	-- Logique du jeu
@@ -47,16 +49,17 @@ architecture space_arch of SpaceShooter is
 	
 	-- Faciliter l'affichage de la matrice selon la fréquence courante
 	signal led_counter : integer range 0 to 20; -- Index de la ligne courante pour l'affichage du menu
-	signal switch : natural range 1 to 3 := 1; -- Switch pour avoir une alternance entre les obstacles et le joueur
+	signal switch : natural range 1 to 3; -- Switch pour avoir une alternance entre les obstacles et le joueur
 
 	-- 7 segments (0 to 99)
-	subtype digit_type is integer range 0 to 9; -- Type pour les 7 segments
-	signal score_dizaine, score_unite : digit_type;
-	signal previous_dizaine : digit_type;
+	signal score_dizaine : integer range 0 to 5;
+	signal score_unite : integer range 0 to 9;
 	
 	signal difficulty : integer range 1 to 3 := 1;
 	
 	signal end_led_state : std_logic := '0';
+	
+	signal win : boolean := false;
 	
 	
 	begin
@@ -69,7 +72,7 @@ architecture space_arch of SpaceShooter is
 						led_end <= '0';
 						score_dizaine <= 0;
 						score_unite <= 0;
-						
+						win <= false;
 						
 						if(move_right = '0' and move_left = '0') then
 							not_action <= true;
@@ -98,17 +101,15 @@ architecture space_arch of SpaceShooter is
 							when 1 => 
 								obstacle_speed := OBSTACLE_SPEED_MAX;
 								lives <= 3;
-							when 2 => 
-								obstacle_speed := 10;
+							when 2 =>
+								obstacle_speed := 12;
 								lives <= 3;
 							when 3 =>
-								obstacle_speed := 10;
+								obstacle_speed := 12;
 								lives <= 1;
 						end case;
 						
 					when PLAY =>
-						led_end <= '0';
-						
 						if(move_right = '0' and move_left = '0' and shoot = '0') then
 							not_action <= true;
 							
@@ -126,9 +127,10 @@ architecture space_arch of SpaceShooter is
 							elsif shoot = '1' then
 								-- Le joueur a tiré
 								bullet <= true;
+								bullet_col <= player_col;
 							end if;
 						end if;
-					
+						
 						if(bullet) then
 							if(bullet_row > 1) then
 								bullet_row <= bullet_row - 1;
@@ -137,58 +139,48 @@ architecture space_arch of SpaceShooter is
 								bullet <= false;
 							end if;
 						end if;
-					
-						if obstacle_row < 7 then
-							led_counter <= led_counter + 1;
-							
-							-- Facteur de ralentissement pour l'obstacle
-							if led_counter = obstacle_speed then
-								led_counter <= 0;
-								if(not delete_obstacle) then
-									obstacle_row <= obstacle_row + 1;
-								else
-									delete_obstacle <= false;
-								end if;
-							end if;
-						-- Si l'obstacle n'a pas touché le joueur, on réinitialise sa position
-						else
+						
+						collision <= ((((bullet_row - 1 = obstacle_row) or bullet_row = obstacle_row) and bullet_col = obstacle_col) and bullet); -- Si le tir a touché un obstacle, il vaut true. False sinon
+						
+							-- Si l'obstacle touche le joueur, on diminue ses vies de 1
+						if(obstacle_row = GRID_HEIGHT) then
+							lives <= lives - 1;
+							delete_obstacle <= true;
 							obstacle_row <= 1;
 							obstacle_col <= rand_col;
+						else
+							if not collision then
+								led_counter <= led_counter + 1;
+								-- Facteur de ralentissement pour l'obstacle
+								if led_counter = obstacle_speed then
+									led_counter <= 0;
+									obstacle_row <= obstacle_row + 1;
+								end if;
+							end if;
 							delete_obstacle <= false;
 						end if;
 						
-						-- Si l'obstacle touche le joueur, on diminue ses vies de 1
-						 if(obstacle_row = GRID_HEIGHT and obstacle_col = player_col) or obstacle_row = GRID_HEIGHT then
-							  lives <= lives - 1;
-							  delete_obstacle <= true;
-						 end if;
-						
-						collision <= (bullet_row = obstacle_row and player_col = obstacle_col) and bullet; -- Si le tir a touché un obstacle, il vaut true. False sinon
 						
 						if(collision) then
 							-- On incrémente le score manuellement pour économiser les logic gates (optimisation)
 							if(score_dizaine <= 9 and score_unite <= 9) then
 								if score_unite = 9 then
 									score_dizaine <= score_dizaine + 1;
+									obstacle_speed := obstacle_speed - 2;
 									score_unite <= 0;
 								else
 									score_unite <= score_unite + 1;
 								end if;
 							end if;
 							
-							if score_dizaine /= previous_dizaine then 
-								obstacle_speed := obstacle_speed - 1;
-								previous_dizaine <= score_dizaine;
-							end if;
-							
-							delete_obstacle <= true; -- On supprime l'obstacle s'il a été touché par un tir
 							obstacle_row <= 1; -- On place l'obstacle à la premiere ligne (à corriger)
 							obstacle_col <= rand_col; -- On place l'obstacle dans une colonne random
-							collision <= false; -- Le nouvel obstacle n'a pas encore été touché
 							bullet <= false;
+							delete_obstacle <= true;
+							collision <= false;
 							bullet_row <= 6;
-						
 						end if;
+						
 						
 						-- Mise à jour des 7 segments en fonction du score
 						dizaine <= std_logic_vector(to_unsigned(score_dizaine, 4));
@@ -202,41 +194,35 @@ architecture space_arch of SpaceShooter is
 							state <= PAUSE;
 						end if;
 						
+						if(score_dizaine = 5) then
+							win <= true;
+							state <= GAME_OVER;
+						end if;
+						
 						
 					when GAME_OVER =>
-						led_counter <= led_counter + 1;
-						if(led_counter = 20) then
-							led_counter <= 0;
-							end_led_state <= not end_led_state;
-							led_end <= end_led_state;
+						
+						if(win = true) then
+							led_counter <= led_counter + 1;
+							if(led_counter = 20) then
+								led_counter <= 0;
+								end_led_state <= not end_led_state;
+								led_end <= end_led_state;
+							end if;
+						else
+							led_end <= '1';
 						end if;
 						
 						-- RESET
 						if(control = '1') then
 							state <= MENU;
-						elsif(shoot = '1') then
-							score_dizaine <= 0;
-							score_unite <= 0;
-							player_col <= 3;
-							case difficulty is
-								when 1 => 
-									obstacle_speed := OBSTACLE_SPEED_MAX;
-									lives <= 3;
-								when 2 => 
-									obstacle_speed := 10;
-									lives <= 3;
-								when 3 =>
-									obstacle_speed := 10;
-									lives <= 1;
-							end case;
-							state <= PLAY;
 						end if;
 						
 					when PAUSE =>
 						if(shoot = '1') then
 							state <= PLAY;
 						end if;
-
+						
 				end case;
 			end if;
 		end process logic;
@@ -255,6 +241,7 @@ architecture space_arch of SpaceShooter is
 	
 	 
 	display : process(clk_fast, control)   
+		
 
 	begin
 	  if rising_edge(clk_fast) then
@@ -263,6 +250,8 @@ architecture space_arch of SpaceShooter is
 					 rows <= (others => '0');
 					 cols_green <= (others => '1');
 					 cols_red <= (others => '1');
+					 
+					 
 					 
 					 -- Premier rising edge, on affiche le joueur selon son état
 					 if switch = 1 then
@@ -278,11 +267,11 @@ architecture space_arch of SpaceShooter is
 								when others =>
 						  end case;
 						  
-						  rows(player_row) <= '1';
+						  rows(player_row) <= '1'; -- On allume uniquement la ligne du joueur
 					 
 					-- Deuxième rising edge, on affiche l'obstacle
 					elsif switch = 2 then
-						if not delete_obstacle then
+						if collision nand delete_obstacle then
 							cols_red <= (others => '1');
 							rows <= (others => '0');
 							rows(obstacle_row) <= '1';
@@ -296,19 +285,10 @@ architecture space_arch of SpaceShooter is
 					end if;
 				 
 					switch <= switch + 1;
+				
 				when others =>
 			end case;
 	  end if;
 	end process display;
 
 end architecture space_arch;
-
-
-
-
-
-
-
-
-		
-		
